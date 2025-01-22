@@ -11,28 +11,48 @@
         <h1>FILMATCH</h1>
     </header>
 
+    <!-- Formulario para buscar películas por plataforma con selección múltiple -->
     <form method="POST">
         <label for="plataforma">Elige tu plataforma favorita y te recomendaremos las 10 películas mejor valoradas según la población:</label>
-        <input type="text" name="plataforma" id="plataforma" placeholder="Ejemplo: Netflix">
+        <select name="plataforma" id="plataforma" multiple>
+            <option value="Netflix">Netflix</option>
+            <option value="HBO">HBO</option>
+            <option value="Disney">Disney+</option>
+            <option value="Amazon">Amazon Prime</option>
+            <option value="Hulu">Hulu</option>
+            <option value="Paramount">Paramount</option>
+            <option value="Crunchyroll">Crunchyroll</option>
+        </select>
         <button type="submit">Buscar</button>
     </form>
 
+    <!-- Formulario para buscar películas por título -->
     <form method="POST">
         <label for="titulo">Busca una película por título:</label>
         <input type="text" name="titulo" id="titulo" placeholder="Ejemplo: Inception">
         <button type="submit">Buscar</button>
     </form>
 
+    <!-- Formulario para calcular películas según la edad -->
     <form method="POST" class="form-edad">
         <label for="edad">¿Qué edad tienes? Te recomendaremos películas según tu año de nacimiento:</label>
         <input type="number" name="edad" id="edad" placeholder="Ejemplo: 25" min="1">
         <button type="submit">Buscar</button>
     </form>
 
+    <!-- Formulario para ingresar el ID de usuario y obtener recomendaciones personalizadas -->
+    <form method="POST" class="form-recomendaciones">
+        <label for="user_id">Ingresa tu ID de usuario para recibir recomendaciones personalizadas:</label>
+        <input type="text" name="user_id" id="user_id" placeholder="Ejemplo: 1">
+        <button type="submit">Obtener recomendaciones</button>
+    </form>
+
+    <!-- Mostrar errores -->
     {% if mensaje_error %}
         <p class="error">{{ mensaje_error }}</p>
     {% endif %}
 
+    <!-- Mostrar resultados por plataforma -->
     {% if resultado %}
         <h2>Las 10 películas más valoradas en la plataforma seleccionada:</h2>
         <table>
@@ -67,46 +87,71 @@
         </table>
     {% endif %}
 
+    <!-- Mostrar resultados por título -->
     {% if plataformas_pelicula %}
-        <h2>Plataformas donde está disponible la película:</h2>
-        <div class="platform-container">
-            {% for plataforma in plataformas_pelicula %}
-                <div>
-                    <img src="{{ plataforma.image }}" alt="{{ plataforma.name }}" class="platform-image">
-                    <p style="text-align: center; margin-top: 5px;">{{ plataforma.name }}</p>
-                </div>
-            {% endfor %}
-        </div>
+    <h2>Plataformas donde está disponible la película:</h2>
+    <div class="platform-container">
+        {% for plataforma in plataformas_pelicula %}
+            <div>
+                <img src="{{ plataforma.image }}" alt="{{ plataforma.name }}" class="platform-image">
+                <p style="text-align: center; margin-top: 5px;">{{ plataforma.name }}</p>
+            </div>
+        {% endfor %}
+    </div>
     {% endif %}
 
+    <!-- Mostrar resultados según la edad -->
     {% if peliculas_por_edad %}
-        <h2>Películas recomendadas basadas en tu año de nacimiento:</h2>
-        <table class="tabla-edad">
+    <h2>Películas recomendadas basadas en tu año de nacimiento:</h2>
+    <table class="tabla-edad">
+        <thead>
+            <tr>
+                <th>Portada</th>
+                <th>Título</th>
+                <th>Descripción</th>
+                <th>Género</th>
+                <th>Año</th>
+                <th>Duración (min)</th>
+                <th>Valoración</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for pelicula in peliculas_por_edad %}
+                <tr>
+                    <td><img src="{{ pelicula['poster_url'] }}" alt="Portada de {{ pelicula['title'] }}" style="width:100px; height:auto;"></td>
+                    <td>{{ pelicula['title'] }}</td>
+                    <td class="descripcion">
+                        <p class="descripcion-corta" data-short="{{ pelicula['description'] | truncatewords(15) }}" 
+                           data-extend="{{ pelicula['description'] }}" >{{ pelicula['description'] | truncatewords(15) }}</p>
+                        <button class="leer-mas">Leer más</button>
+                    </td>
+                    <td>{{ pelicula['genres'] }}</td>
+                    <td>{{ pelicula['release_year'] }}</td>
+                    <td>{{ pelicula['runtime'] }}</td>
+                    <td>{{ pelicula['imdb_score'] }}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+
+    <!-- Mostrar recomendaciones personalizadas -->
+    {% if recomendaciones %}
+        <h2>Recomendaciones personalizadas:</h2>
+        <table>
             <thead>
                 <tr>
                     <th>Portada</th>
                     <th>Título</th>
-                    <th>Descripción</th>
-                    <th>Género</th>
-                    <th>Año</th>
-                    <th>Duración (min)</th>
-                    <th>Valoración</th>
+                    <th>Valoración predicha</th>
                 </tr>
             </thead>
             <tbody>
-                {% for pelicula in peliculas_por_edad %}
+                {% for pelicula in recomendaciones %}
                     <tr>
-                        <td><img src="{{ pelicula['image'] }}" alt="Portada de {{ pelicula['title'] }}" style="width:100px; height:auto;"></td>
+                        <td><img src="{{ pelicula['poster_url'] }}" alt="Portada de {{ pelicula['title'] }}" style="width:100px; height:auto;"></td>
                         <td>{{ pelicula['title'] }}</td>
-                        <td class="descripcion">
-                            <p class="descripcion-corta" data-short="{{ pelicula['description'] | truncatewords(15) }}" 
-                               data-extend="{{ pelicula['description'] }}" >{{ pelicula['description'] | truncatewords(15) }}</p>
-                            <button class="leer-mas">Leer más</button>
-                        </td>
-                        <td>{{ pelicula['genres'] }}</td>
-                        <td>{{ pelicula['release_year'] }}</td>
-                        <td>{{ pelicula['runtime'] }}</td>
-                        <td>{{ pelicula['imdb_score'] }}</td>
+                        <td>{{ pelicula['score'] }}</td>
                     </tr>
                 {% endfor %}
             </tbody>
@@ -116,7 +161,7 @@
     <footer>
         <p>Hecho por Facundo, Jonathan y Sergio. <a href="#">Contáctanos</a></p>
     </footer>
-
+   
     <script src="{{ url_for('static', filename='js/script.js') }}"></script>
 </body>
 </html>
