@@ -3,15 +3,16 @@ from flask_sqlalchemy import SQLAlchemy
 import pandas as pd
 import requests
 from surprise import SVD, Dataset, Reader
-import secrets  # Importamos el módulo para generar la clave secreta
+import secrets
+from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
 
 # Establecemos la clave secreta para la sesión
 app.secret_key = secrets.token_hex(16)  # Genera una clave secreta aleatoria
 
+# Configuración de la base de datos
 app.config['SQLALCHEMY_DATABASE_URI'] = r'sqlite:///C:\Users\Sergio\Desktop\Proyecto1\data\usuarios.db'
-
 db = SQLAlchemy(app)
 
 # API Key de OMDb
@@ -34,7 +35,6 @@ lectura_csv = pd.read_csv("df_stream_kaggle.csv",
 lectura_csv['average_rating'] = lectura_csv[['imdb_score', 'tmdb_score']].mean(axis=1)
 
 # Crear un dataset de calificaciones para usar con Surprise
-# Usamos un único 'userId' para simular calificaciones por un solo usuario
 calificaciones_df = pd.DataFrame({
     'userId': [1] * len(lectura_csv),  # Usamos el mismo 'userId' (1) para todas las películas
     'title': lectura_csv['title'],
@@ -69,12 +69,21 @@ def obtener_url_portada(titulo):
             return datos.get('Poster')
     return None
 
+# Registrar el filtro 'truncatewords' personalizado
+@app.template_filter('truncatewords')
+def truncatewords_filter(text, num_words):
+    """Recorta el texto a un número específico de palabras."""
+    if not text:
+        return ''
+    words = text.split()
+    return ' '.join(words[:num_words])
+
 # Rutas principales
 @app.route('/')
 def home():
     if 'id' in session:  # Usamos 'id' en vez de 'user_id'
         usuario = usuarios.query.get(session['id'])  # Buscamos al usuario por id
-        return render_template('index.html', username=usuario.username)
+        return render_template('filmatch.html', username=usuario.username)
     return redirect(url_for('login'))
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -109,46 +118,58 @@ def logout():
     flash('Sesión cerrada exitosamente.', 'success')
     return redirect(url_for('login'))
 
-@app.route('/buscar', methods=['POST'])
-def buscar():
-    titulo = request.form['titulo']
-    peliculas = lectura_csv[lectura_csv['title'].str.contains(titulo, case=False, na=False)]
-    resultados = [{
-        'title': fila['title'],
-        'description': fila['description'],
-        'poster_url': obtener_url_portada(fila['title']) or '/static/imagenes/Imagen_por_defecto.jpg'
-    } for _, fila in peliculas.iterrows()]
-    return render_template('resultados.html', resultados=resultados)
+@app.route('/filmatch', methods=['GET', 'POST'])
+def filmatch():
+    resultado_pelicula = None
+    mensaje_error = None
+    resultado = None
+    recomendaciones = None
 
-@app.route('/recomendar')
-def recomendar():
-    if 'id' not in session:
-        flash('Por favor, inicia sesión para obtener recomendaciones.', 'warning')
-        return redirect(url_for('login'))
-    usuario = usuarios.query.get(session['id'])  # Consultamos al usuario por su id
-    recomendaciones = obtener_recomendaciones(str(usuario.id))
-    resultados = [{
-        'title': titulo,
-        'score': score,
-        'poster_url': obtener_url_portada(titulo) or '/static/imagenes/Imagen_por_defecto.jpg'
-    } for titulo, score in recomendaciones]
-    return render_template('recomendaciones.html', recomendaciones=resultados)
-
-@app.route('/favoritos', methods=['GET', 'POST'])
-def favoritos():
-    if 'id' not in session:
-        flash('Por favor, inicia sesión para gestionar favoritos.', 'warning')
-        return redirect(url_for('login'))
-    usuario = usuarios.query.get(session['id'])  # Consultamos al usuario por su id
     if request.method == 'POST':
-        pelicula = request.form['pelicula']
-        favoritos = [] if not usuario.favoritos else eval(usuario.favoritos)
-        if pelicula not in favoritos:
-            favoritos.append(pelicula)
-            usuario.favoritos = str(favoritos)
-            db.session.commit()
-    favoritos = [] if not usuario.favoritos else eval(usuario.favoritos)
-    return render_template('favoritos.html', favoritos=favoritos)
+        if 'titulo' in request.form:
+            # Procesar la búsqueda por título
+            titulo = request.form['titulo']
+            peliculas = lectura_csv[lectura_csv['title'].str.contains(titulo, case=False, na=False)]
+            if not peliculas.empty:
+                resultado_pelicula = [{
+                    'title': fila['title'],
+                    'description': fila['description'],
+                    'poster_url': obtener_url_portada(fila['title']) or '/static/imagenes/Imagen_por_defecto.jpg',
+                    'release_year': fila['release_year'],
+                    'streaming_service': fila['streaming_service']
+                } for _, fila in peliculas.iterrows()]
+            else:
+                mensaje_error = 'No se encontraron películas con ese título.'
+
+        elif 'plataforma' in request.form:
+            # Procesar la búsqueda por plataformas
+            plataformas_seleccionadas = request.form.getlist('plataforma')
+            peliculas_filtradas = lectura_csv[lectura_csv['streaming_service'].isin(plataformas_seleccionadas)]
+            if not peliculas_filtradas.empty:
+                resultado = [{
+                    'title': fila['title'],
+                    'description': fila['description'],
+                    'poster_url': obtener_url_portada(fila['title']) or '/static/imagenes/Imagen_por_defecto.jpg',
+                    'genres': fila['genres'],
+                    'streaming_service': fila['streaming_service'],
+                    'release_year': fila['release_year'],
+                    'runtime': fila['runtime'],
+                    'imdb_score': fila['imdb_score']
+                } for _, fila in peliculas_filtradas.iterrows()]
+            else:
+                mensaje_error = 'No se encontraron películas en esas plataformas.'
+
+        # Si el usuario está logueado y se muestra la recomendación personalizada
+        if 'id' in session:
+            usuario = usuarios.query.get(session['id'])
+            recomendaciones = obtener_recomendaciones(str(usuario.id))
+            recomendaciones = [{
+                'title': titulo,
+                'score': score,
+                'poster_url': obtener_url_portada(titulo) or '/static/imagenes/Imagen_por_defecto.jpg'
+            } for titulo, score in recomendaciones]
+
+    return render_template('filmatch.html', resultado_pelicula=resultado_pelicula, mensaje_error=mensaje_error, resultado=resultado, recomendaciones=recomendaciones)
 
 if __name__ == '__main__':
     app.run(debug=True)
