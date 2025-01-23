@@ -9,7 +9,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 app = Flask(__name__)
 
 # Establecemos la clave secreta para la sesión
-app.secret_key = secrets.token_hex(16)  # Genera una clave secreta aleatoria
+app.secret_key = secrets.token_hex(16) 
 
 # Configuración de la base de datos
 app.config['SQLALCHEMY_DATABASE_URI'] = r'sqlite:///C:\Users\Sergio\Desktop\Proyecto1\data\usuarios.db'
@@ -36,9 +36,9 @@ lectura_csv['average_rating'] = lectura_csv[['imdb_score', 'tmdb_score']].mean(a
 
 # Crear un dataset de calificaciones para usar con Surprise
 calificaciones_df = pd.DataFrame({
-    'userId': [1] * len(lectura_csv),  # Usamos el mismo 'userId' (1) para todas las películas
+    'userId': [1] * len(lectura_csv),  
     'title': lectura_csv['title'],
-    'rating': lectura_csv['average_rating']  # Usamos la calificación promedio
+    'rating': lectura_csv['average_rating']  
 })
 
 # Configuración de Surprise para crear el modelo
@@ -69,7 +69,7 @@ def obtener_url_portada(titulo):
             return datos.get('Poster')
     return None
 
-# Registrar el filtro 'truncatewords' personalizado
+
 @app.template_filter('truncatewords')
 def truncatewords_filter(text, num_words):
     """Recorta el texto a un número específico de palabras."""
@@ -81,7 +81,7 @@ def truncatewords_filter(text, num_words):
 # Rutas principales
 @app.route('/')
 def home():
-    if 'id' in session:  # Usamos 'id' en vez de 'user_id'
+    if 'id' in session: 
         usuario = usuarios.query.get(session['id'])  # Buscamos al usuario por id
         return render_template('filmatch.html', username=usuario.username)
     return redirect(url_for('login'))
