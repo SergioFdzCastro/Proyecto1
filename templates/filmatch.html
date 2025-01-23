@@ -101,22 +101,9 @@
                     </div>
                 {% endfor %}
             </div>
-        {% elif mensaje_error %}
-            <div class="error-message">
-                <p>{{ mensaje_error }}</p>
-            </div>
         {% endif %}
 
-        <!-- Formulario para obtener recomendaciones -->
-        <form method="POST" class="mt-5">
-            <div class="form-group">
-                <label for="user_id">Ingrese su ID de usuario:</label>
-                <input type="text" name="user_id" id="user_id" class="form-control" required>
-            </div>
-            <button type="submit" class="btn btn-primary">Obtener Recomendaciones</button>
-        </form>
-
-        <!-- Mostrar recomendaciones basadas en el SVD -->
+        <!-- Mostrar recomendaciones personalizadas -->
         {% if recomendaciones %}
             <h2 class="mt-5">Recomendaciones para ti:</h2>
             <div class="row">
@@ -125,14 +112,8 @@
                         <img src="{{ pelicula.poster_url }}" alt="{{ pelicula.title }}">
                         <h3>{{ pelicula.title }}</h3>
                         <p><strong>Score:</strong> {{ pelicula.score }}</p>
-                        <p><strong>Género:</strong> {{ pelicula.genres }}</p>
-                        <p><strong>Plataforma:</strong> {{ pelicula.platform }}</p>
                     </div>
                 {% endfor %}
-            </div>
-        {% elif mensaje_error %}
-            <div class="error-message">
-                <p>{{ mensaje_error }}</p>
             </div>
         {% endif %}
     </div>
