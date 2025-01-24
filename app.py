@@ -164,14 +164,36 @@ def filmatch():
         # Si el usuario está logueado y se muestra la recomendación personalizada
         if 'id' in session:
             usuario = usuarios.query.get(session['id'])
-            recomendaciones = obtener_recomendaciones(str(usuario.id))
-            recomendaciones = [({
-                'title': titulo,
-                'score': score,
-                'poster_url': obtener_url_portada(titulo) or '/static/imagenes/Imagen_por_defecto.jpg'
-            }) for titulo, score in recomendaciones]
+            if usuario.favoritos:
+                # Extraemos las películas favoritas del usuario
+                peliculas_favoritas = usuario.favoritos.split(",")  # Convertir la cadena JSON en lista
+                recomendaciones = obtener_recomendaciones_personalizadas(peliculas_favoritas)
+                recomendaciones = [({
+                    'title': titulo,
+                    'score': score,
+                    'poster_url': obtener_url_portada(titulo) or '/static/imagenes/Imagen_por_defecto.jpg'
+                }) for titulo, score in recomendaciones]
+            else:
+                recomendaciones = []
 
     return render_template('filmatch.html', resultado_pelicula=resultado_pelicula, mensaje_error=mensaje_error, resultado=resultado, recomendaciones=recomendaciones)
+
+def obtener_recomendaciones_personalizadas(favoritos):
+    """
+    Esta función genera recomendaciones personalizadas para el usuario en base a sus películas favoritas.
+    """
+    recomendaciones = []
+    for favorito in favoritos:
+        # Obtenemos las predicciones basadas en la película favorita
+        peliculas = lectura_csv['title'].unique()
+        predicciones = [(pelicula, svd.predict('1', pelicula).est) for pelicula in peliculas]
+        # Ordenamos las predicciones por el puntaje (en orden descendente) y las seleccionamos
+        recomendaciones.extend(sorted(predicciones, key=lambda x: x[1], reverse=True)[:5])  # Top 5 por cada favorito
+
+    # Eliminamos duplicados de las recomendaciones
+    recomendaciones = list(set(recomendaciones))
+    recomendaciones = sorted(recomendaciones, key=lambda x: x[1], reverse=True)  # Orden final por puntaje
+    return recomendaciones
 
 @app.route('/favoritos', methods=['POST'])
 def agregar_a_favoritos():
@@ -194,17 +216,6 @@ def agregar_a_favoritos():
         return redirect(url_for('home'))
     return redirect(url_for('login'))
 
-@app.route('/mis_favoritos')
-def ver_favoritos():
-    if 'id' in session:
-        usuario = usuarios.query.get(session['id'])
-        favoritos = usuario.favoritos
-        if favoritos:
-            favoritos = favoritos.split(",")  # Convertir la cadena JSON en lista
-        else:
-            favoritos = []
-        return render_template('mis_favoritos.html', favoritos=favoritos)
-    return redirect(url_for('login'))
 
 if __name__ == '__main__':
     app.run(debug=True)
