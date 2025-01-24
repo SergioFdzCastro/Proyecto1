@@ -8,10 +8,8 @@ from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
 
-# Establecemos la clave secreta para la sesión
+# Configuración básica
 app.secret_key = secrets.token_hex(16)
-
-# Configuración de la base de datos
 app.config['SQLALCHEMY_DATABASE_URI'] = r'sqlite:///C:\Users\Sergio\Desktop\Proyecto1\data\usuarios.db'
 db = SQLAlchemy(app)
 
@@ -23,27 +21,23 @@ class usuarios(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), nullable=False, unique=True)
     password = db.Column(db.String(200), nullable=False)
-    favoritos = db.Column(db.Text, nullable=True)  # Películas marcadas como favoritas (JSON)
-    busquedas_recientes = db.Column(db.Text, nullable=True)  # Películas o géneros que ha buscado el usuario (JSON)
+    favoritos = db.Column(db.Text, nullable=True)  # Películas favoritas almacenadas como una lista
+    busquedas_recientes = db.Column(db.Text, nullable=True)  # Búsquedas del usuario almacenadas como una lista
 
-# Cargar el archivo CSV de películas
+# Leer archivo CSV de películas y calcular calificación promedio
 lectura_csv = pd.read_csv("df_stream_kaggle.csv", 
                           usecols=['title', 'description', 'release_year', 'runtime', 
                                    'genres', 'production_countries', 'imdb_score', 
                                    'tmdb_score', 'streaming_service'])
-
-# Calcular la calificación promedio de 'imdb_score' y 'tmdb_score'
 lectura_csv['average_rating'] = lectura_csv[['imdb_score', 'tmdb_score']].mean(axis=1)
 
-# Crear un dataset de calificaciones para usar con Surprise
+# Crear dataset y modelo de recomendaciones
 calificaciones_df = pd.DataFrame({
-    'userId': [1] * len(lectura_csv),  
+    'userId': [1] * len(lectura_csv),
     'title': lectura_csv['title'],
-    'rating': lectura_csv['average_rating']  
+    'rating': lectura_csv['average_rating']
 })
-
-# Configuración de Surprise para crear el modelo
-reader = Reader(rating_scale=(1, 10))  # Ajuste del rango de calificaciones
+reader = Reader(rating_scale=(1, 10))
 dataset = Dataset.load_from_df(calificaciones_df[['userId', 'title', 'rating']], reader)
 trainset = dataset.build_full_trainset()
 svd = SVD()
@@ -51,15 +45,15 @@ svd.fit(trainset)
 
 # Función para obtener recomendaciones
 def obtener_recomendaciones(user_id, top_n=10):
-    peliculas = lectura_csv['title'].unique()  # Obtener los títulos únicos de las películas
+    peliculas = lectura_csv['title'].unique()
     predicciones = [(pelicula, svd.predict(user_id, pelicula).est) for pelicula in peliculas]
     return sorted(predicciones, key=lambda x: x[1], reverse=True)[:top_n]
 
-# Función para normalizar título de película para consulta a OMDB API
+# Función para normalizar título para consulta a OMDb
 def normalizar_titulo(titulo):
     return titulo.strip().lower().replace(" ", "+")
 
-# Función para obtener la URL de la portada de la película
+# Obtener URL de portada de película desde OMDb
 def obtener_url_portada(titulo):
     titulo_normalizado = normalizar_titulo(titulo)
     url = f"http://www.omdbapi.com/?t={titulo_normalizado}&apikey={OMDB_API_KEY}"
@@ -70,9 +64,9 @@ def obtener_url_portada(titulo):
             return datos.get('Poster')
     return None
 
+# Filtro de plantilla para recortar texto
 @app.template_filter('truncatewords')
 def truncatewords_filter(text, num_words):
-    """Recorta el texto a un número específico de palabras."""
     if not text:
         return ''
     words = text.split()
@@ -81,8 +75,8 @@ def truncatewords_filter(text, num_words):
 # Rutas principales
 @app.route('/')
 def home():
-    if 'id' in session: 
-        usuario = usuarios.query.get(session['id'])  # Buscamos al usuario por id
+    if 'id' in session:
+        usuario = usuarios.query.get(session['id'])
         return render_template('filmatch.html', username=usuario.username)
     return redirect(url_for('login'))
 
@@ -93,7 +87,7 @@ def login():
         password = request.form['password']
         usuario = usuarios.query.filter_by(username=username).first()
         if usuario and check_password_hash(usuario.password, password):
-            session['id'] = usuario.id  # Guardamos el id del usuario en la sesión
+            session['id'] = usuario.id
             flash('Inicio de sesión exitoso', 'success')
             return redirect(url_for('home'))
         flash('Credenciales inválidas', 'danger')
@@ -114,7 +108,7 @@ def register():
 
 @app.route('/logout')
 def logout():
-    session.pop('id', None)  # Eliminamos el id de la sesión
+    session.pop('id', None)
     flash('Sesión cerrada exitosamente.', 'success')
     return redirect(url_for('login'))
 
@@ -127,18 +121,14 @@ def filmatch():
 
     if request.method == 'POST':
         if 'titulo' in request.form:
-            # Procesar la búsqueda por título
+            # Búsqueda por título
             titulo = request.form['titulo']
             if 'id' in session:
                 usuario = usuarios.query.get(session['id'])
-                # Guardar la búsqueda reciente
-                if usuario.busquedas_recientes:
-                    busquedas = usuario.busquedas_recientes.split(",")
-                else:
-                    busquedas = []
+                busquedas = usuario.busquedas_recientes.split(",") if usuario.busquedas_recientes else []
                 if titulo not in busquedas:
                     busquedas.append(titulo)
-                usuario.busquedas_recientes = ",".join(busquedas)  # Guardar las búsquedas en la base de datos
+                usuario.busquedas_recientes = ",".join(busquedas)
                 db.session.commit()
 
             peliculas = lectura_csv[lectura_csv['title'].str.contains(titulo, case=False, na=False)]
@@ -154,7 +144,7 @@ def filmatch():
                 mensaje_error = 'No se encontraron películas con ese título.'
 
         elif 'plataforma' in request.form:
-            # Procesar la búsqueda por plataformas
+            # Búsqueda por plataforma
             plataformas_seleccionadas = request.form.getlist('plataforma')
             if plataformas_seleccionadas:
                 peliculas_filtradas = lectura_csv[lectura_csv['streaming_service'].isin(plataformas_seleccionadas)]
@@ -174,24 +164,11 @@ def filmatch():
             else:
                 mensaje_error = 'Debe seleccionar al menos una plataforma.'
 
-        # Si el usuario está logueado y se muestra la recomendación personalizada
         if 'id' in session:
             usuario = usuarios.query.get(session['id'])
-            
-            # Obtener películas favoritas del usuario
-            if usuario.favoritos:
-                peliculas_favoritas = usuario.favoritos.split(",")
-            else:
-                peliculas_favoritas = []
-            
-            # Obtener búsquedas recientes del usuario
-            if usuario.busquedas_recientes:
-                busquedas_recientes = usuario.busquedas_recientes.split(",")
-            else:
-                busquedas_recientes = []
-
-            # Generar recomendaciones basadas en favoritos y búsquedas
-            recomendaciones = obtener_recomendaciones_personalizadas(peliculas_favoritas, busquedas_recientes)
+            favoritos = usuario.favoritos.split(",") if usuario.favoritos else []
+            busquedas_recientes = usuario.busquedas_recientes.split(",") if usuario.busquedas_recientes else []
+            recomendaciones = obtener_recomendaciones_personalizadas(favoritos, busquedas_recientes)
             recomendaciones = [({
                 'title': titulo,
                 'score': score,
@@ -201,25 +178,15 @@ def filmatch():
     return render_template('filmatch.html', resultado_pelicula=resultado_pelicula, mensaje_error=mensaje_error, resultado=resultado, recomendaciones=recomendaciones)
 
 def obtener_recomendaciones_personalizadas(favoritos, busquedas_recientes):
-    """
-    Esta función genera recomendaciones personalizadas para el usuario en base a sus películas favoritas
-    y las búsquedas recientes.
-    """
     recomendaciones = []
-
-    # Considerar películas favoritas
     for favorito in favoritos:
         peliculas = lectura_csv['title'].unique()
         predicciones = [(pelicula, svd.predict('1', pelicula).est) for pelicula in peliculas]
         recomendaciones.extend(sorted(predicciones, key=lambda x: x[1], reverse=True)[:5])
-
-    # Considerar películas de búsquedas recientes
     for busqueda in busquedas_recientes:
         peliculas = lectura_csv[lectura_csv['title'].str.contains(busqueda, case=False, na=False)]
         predicciones = [(fila['title'], fila['imdb_score']) for _, fila in peliculas.iterrows()]
         recomendaciones.extend(predicciones)
-
-    # Eliminamos duplicados y ordenamos por la puntuación
     recomendaciones = list(set(recomendaciones))
     recomendaciones = sorted(recomendaciones, key=lambda x: x[1], reverse=True)
     return recomendaciones
@@ -230,21 +197,16 @@ def agregar_a_favoritos():
         usuario = usuarios.query.get(session['id'])
         if 'titulo_pelicula' in request.form:
             titulo_pelicula = request.form['titulo_pelicula']
-            favoritos = usuario.favoritos
-            if favoritos:
-                favoritos = favoritos.split(",")  # Convertir la cadena JSON en lista
-            else:
-                favoritos = []
+            favoritos = usuario.favoritos.split(",") if usuario.favoritos else []
             if titulo_pelicula not in favoritos:
-                favoritos.append(titulo_pelicula)  # Añadir la nueva película a la lista
-                usuario.favoritos = ",".join(favoritos)  # Guardar la lista actualizada como cadena
+                favoritos.append(titulo_pelicula)
+                usuario.favoritos = ",".join(favoritos)
                 db.session.commit()
                 flash(f'La película "{titulo_pelicula}" se ha añadido a tus favoritos.', 'success')
             else:
                 flash('Esta película ya está en tus favoritos.', 'warning')
         return redirect(url_for('home'))
     return redirect(url_for('login'))
-
 
 if __name__ == '__main__':
     app.run(debug=True)

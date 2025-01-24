@@ -117,18 +117,6 @@
             </div>
         {% endif %}
 
-        <!-- Sección de películas favoritas -->
-        <h2 class="mt-5">Mis Películas Favoritas</h2>
-        <ul>
-            {% if favoritos %}
-                {% for pelicula in favoritos %}
-                    <li>{{ pelicula }}</li>
-                {% else %}
-                    <li>No tienes películas favoritas aún.</li>
-                {% endfor %}
-            {% endif %}
-        </ul>
-
         <!-- Formulario para agregar película a favoritos -->
         <h3 class="mt-5">Agregar película a favoritos</h3>
         <form method="POST" action="/favoritos">
