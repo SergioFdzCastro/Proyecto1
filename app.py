@@ -24,6 +24,7 @@ class usuarios(db.Model):
     username = db.Column(db.String(80), nullable=False, unique=True)
     password = db.Column(db.String(200), nullable=False)
     favoritos = db.Column(db.Text, nullable=True)  # Películas marcadas como favoritas (JSON)
+    busquedas_recientes = db.Column(db.Text, nullable=True)  # Películas o géneros que ha buscado el usuario (JSON)
 
 # Cargar el archivo CSV de películas
 lectura_csv = pd.read_csv("df_stream_kaggle.csv", 
@@ -103,7 +104,7 @@ def register():
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
-        hashed_password = generate_password_hash(password, method='sha256')
+        hashed_password = generate_password_hash(password, method='pbkdf2:sha256')
         nuevo_usuario = usuarios(username=username, password=hashed_password)
         db.session.add(nuevo_usuario)
         db.session.commit()
@@ -128,6 +129,18 @@ def filmatch():
         if 'titulo' in request.form:
             # Procesar la búsqueda por título
             titulo = request.form['titulo']
+            if 'id' in session:
+                usuario = usuarios.query.get(session['id'])
+                # Guardar la búsqueda reciente
+                if usuario.busquedas_recientes:
+                    busquedas = usuario.busquedas_recientes.split(",")
+                else:
+                    busquedas = []
+                if titulo not in busquedas:
+                    busquedas.append(titulo)
+                usuario.busquedas_recientes = ",".join(busquedas)  # Guardar las búsquedas en la base de datos
+                db.session.commit()
+
             peliculas = lectura_csv[lectura_csv['title'].str.contains(titulo, case=False, na=False)]
             if not peliculas.empty:
                 resultado_pelicula = [({
@@ -164,35 +177,51 @@ def filmatch():
         # Si el usuario está logueado y se muestra la recomendación personalizada
         if 'id' in session:
             usuario = usuarios.query.get(session['id'])
+            
+            # Obtener películas favoritas del usuario
             if usuario.favoritos:
-                # Extraemos las películas favoritas del usuario
-                peliculas_favoritas = usuario.favoritos.split(",")  # Convertir la cadena JSON en lista
-                recomendaciones = obtener_recomendaciones_personalizadas(peliculas_favoritas)
-                recomendaciones = [({
-                    'title': titulo,
-                    'score': score,
-                    'poster_url': obtener_url_portada(titulo) or '/static/imagenes/Imagen_por_defecto.jpg'
-                }) for titulo, score in recomendaciones]
+                peliculas_favoritas = usuario.favoritos.split(",")
             else:
-                recomendaciones = []
+                peliculas_favoritas = []
+            
+            # Obtener búsquedas recientes del usuario
+            if usuario.busquedas_recientes:
+                busquedas_recientes = usuario.busquedas_recientes.split(",")
+            else:
+                busquedas_recientes = []
+
+            # Generar recomendaciones basadas en favoritos y búsquedas
+            recomendaciones = obtener_recomendaciones_personalizadas(peliculas_favoritas, busquedas_recientes)
+            recomendaciones = [({
+                'title': titulo,
+                'score': score,
+                'poster_url': obtener_url_portada(titulo) or '/static/imagenes/Imagen_por_defecto.jpg'
+            }) for titulo, score in recomendaciones]
 
     return render_template('filmatch.html', resultado_pelicula=resultado_pelicula, mensaje_error=mensaje_error, resultado=resultado, recomendaciones=recomendaciones)
 
-def obtener_recomendaciones_personalizadas(favoritos):
+def obtener_recomendaciones_personalizadas(favoritos, busquedas_recientes):
     """
-    Esta función genera recomendaciones personalizadas para el usuario en base a sus películas favoritas.
+    Esta función genera recomendaciones personalizadas para el usuario en base a sus películas favoritas
+    y las búsquedas recientes.
     """
     recomendaciones = []
+
+    # Considerar películas favoritas
     for favorito in favoritos:
-        # Obtenemos las predicciones basadas en la película favorita
         peliculas = lectura_csv['title'].unique()
         predicciones = [(pelicula, svd.predict('1', pelicula).est) for pelicula in peliculas]
-        # Ordenamos las predicciones por el puntaje (en orden descendente) y las seleccionamos
-        recomendaciones.extend(sorted(predicciones, key=lambda x: x[1], reverse=True)[:5])  # Top 5 por cada favorito
+        recomendaciones.extend(sorted(predicciones, key=lambda x: x[1], reverse=True)[:5])
 
-    # Eliminamos duplicados de las recomendaciones
+    # Considerar películas de búsquedas recientes
+    for busqueda in busquedas_recientes:
+        peliculas = lectura_csv[lectura_csv['title'].str.contains(busqueda, case=False, na=False)]
+        predicciones = [(fila['title'], fila['imdb_score']) for _, fila in peliculas.iterrows()]
+        recomendaciones.extend(predicciones)
+
+    # Eliminamos duplicados y ordenamos por la puntuación
     recomendaciones = list(set(recomendaciones))
-    recomendaciones = sorted(recomendaciones, key=lambda x: x[1], reverse=True)  # Orden final por puntaje
+    recomendaciones = sorted(recomendaciones, key=lambda x: x[1], reverse=True)
     return recomendaciones
 
 @app.route('/favoritos', methods=['POST'])
