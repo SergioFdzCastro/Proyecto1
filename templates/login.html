@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/login.css') }}?v=1.0">
 </head>
 <body>
     <h2>Iniciar sesión</h2>
@@ -15,5 +16,7 @@
         <button type="submit">Iniciar sesión</button>
     </form>
     <p>Aún no tienes cuenta? <a href="{{ url_for('register') }}">Regístrate aquí</a></p>
+
+    <script src="{{ url_for('static', filename='js/login.js') }}"></script>
 </body>
 </html>

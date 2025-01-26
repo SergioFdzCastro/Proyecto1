@@ -2,7 +2,6 @@ from flask import Flask, render_template, request, redirect, url_for, session, f
 from flask_sqlalchemy import SQLAlchemy
 import pandas as pd
 import requests
-from surprise import SVD, Dataset, Reader
 import secrets
 from werkzeug.security import generate_password_hash, check_password_hash
 
@@ -24,30 +23,14 @@ class usuarios(db.Model):
     favoritos = db.Column(db.Text, nullable=True)  # Películas favoritas almacenadas como una lista
     busquedas_recientes = db.Column(db.Text, nullable=True)  # Búsquedas del usuario almacenadas como una lista
 
-# Leer archivo CSV de películas y calcular calificación promedio
-lectura_csv = pd.read_csv("df_stream_kaggle.csv", 
+# Leer archivo CSV de películas
+lectura_csv = pd.read_csv("filmatch.csv", 
                           usecols=['title', 'description', 'release_year', 'runtime', 
-                                   'genres', 'production_countries', 'imdb_score', 
-                                   'tmdb_score', 'streaming_service'])
-lectura_csv['average_rating'] = lectura_csv[['imdb_score', 'tmdb_score']].mean(axis=1)
+                                   'genres', 'production_countries', 'score', 'streaming_service'], 
+                          encoding='ISO-8859-1')
 
-# Crear dataset y modelo de recomendaciones
-calificaciones_df = pd.DataFrame({
-    'userId': [1] * len(lectura_csv),
-    'title': lectura_csv['title'],
-    'rating': lectura_csv['average_rating']
-})
-reader = Reader(rating_scale=(1, 10))
-dataset = Dataset.load_from_df(calificaciones_df[['userId', 'title', 'rating']], reader)
-trainset = dataset.build_full_trainset()
-svd = SVD()
-svd.fit(trainset)
-
-# Función para obtener recomendaciones
-def obtener_recomendaciones(user_id, top_n=10):
-    peliculas = lectura_csv['title'].unique()
-    predicciones = [(pelicula, svd.predict(user_id, pelicula).est) for pelicula in peliculas]
-    return sorted(predicciones, key=lambda x: x[1], reverse=True)[:top_n]
+# Normalizamos la columna de plataformas en el CSV
+lectura_csv['streaming_service'] = lectura_csv['streaming_service'].str.lower().str.strip()
 
 # Función para normalizar título para consulta a OMDb
 def normalizar_titulo(titulo):
@@ -116,7 +99,6 @@ def logout():
 def filmatch():
     resultado_pelicula = None
     mensaje_error = None
-    resultado = None
     recomendaciones = None
 
     if request.method == 'POST':
@@ -141,72 +123,32 @@ def filmatch():
                     'streaming_service': fila['streaming_service']
                 }) for _, fila in peliculas.iterrows()]
             else:
-                mensaje_error = 'No se encontraron películas con ese título.'
+                mensaje_error = 'No se encontraron películas con ese título.' 
 
-        elif 'plataforma' in request.form:
-            # Búsqueda por plataforma
-            plataformas_seleccionadas = request.form.getlist('plataforma')
-            if plataformas_seleccionadas:
-                peliculas_filtradas = lectura_csv[lectura_csv['streaming_service'].isin(plataformas_seleccionadas)]
-                if not peliculas_filtradas.empty:
-                    resultado = [({
-                        'title': fila['title'],
-                        'description': fila['description'],
-                        'poster_url': obtener_url_portada(fila['title']) or '/static/imagenes/Imagen_por_defecto.jpg',
-                        'genres': fila['genres'],
-                        'streaming_service': fila['streaming_service'],
-                        'release_year': fila['release_year'],
-                        'runtime': fila['runtime'],
-                        'imdb_score': fila['imdb_score']
-                    }) for _, fila in peliculas_filtradas.iterrows()]
-                else:
-                    mensaje_error = 'No se encontraron películas en esas plataformas.'
-            else:
-                mensaje_error = 'Debe seleccionar al menos una plataforma.'
+        elif 'genero' in request.form and 'plataforma_favorita' in request.form:
+            # Recomendaciones personalizadas basadas en género y plataforma
+            genero = request.form['genero']
+            plataforma_favorita = request.form['plataforma_favorita']
+            recomendaciones = obtener_recomendaciones_por_preferencias(genero, plataforma_favorita)
+                
+    return render_template('filmatch.html', 
+                           resultado_pelicula=resultado_pelicula, 
+                           mensaje_error=mensaje_error, 
+                           recomendaciones=recomendaciones)
 
-        if 'id' in session:
-            usuario = usuarios.query.get(session['id'])
-            favoritos = usuario.favoritos.split(",") if usuario.favoritos else []
-            busquedas_recientes = usuario.busquedas_recientes.split(",") if usuario.busquedas_recientes else []
-            recomendaciones = obtener_recomendaciones_personalizadas(favoritos, busquedas_recientes)
-            recomendaciones = [({
-                'title': titulo,
-                'score': score,
-                'poster_url': obtener_url_portada(titulo) or '/static/imagenes/Imagen_por_defecto.jpg'
-            }) for titulo, score in recomendaciones]
-
-    return render_template('filmatch.html', resultado_pelicula=resultado_pelicula, mensaje_error=mensaje_error, resultado=resultado, recomendaciones=recomendaciones)
-
-def obtener_recomendaciones_personalizadas(favoritos, busquedas_recientes):
-    recomendaciones = []
-    for favorito in favoritos:
-        peliculas = lectura_csv['title'].unique()
-        predicciones = [(pelicula, svd.predict('1', pelicula).est) for pelicula in peliculas]
-        recomendaciones.extend(sorted(predicciones, key=lambda x: x[1], reverse=True)[:5])
-    for busqueda in busquedas_recientes:
-        peliculas = lectura_csv[lectura_csv['title'].str.contains(busqueda, case=False, na=False)]
-        predicciones = [(fila['title'], fila['imdb_score']) for _, fila in peliculas.iterrows()]
-        recomendaciones.extend(predicciones)
-    recomendaciones = list(set(recomendaciones))
+# Función para obtener recomendaciones basadas en las respuestas a las preguntas
+def obtener_recomendaciones_por_preferencias(genero, plataforma_favorita, top_n=10):
+    # Filtrar las películas por género y plataforma
+    peliculas_filtradas = lectura_csv[lectura_csv['genres'].str.contains(genero, case=False, na=False) &
+                                      lectura_csv['streaming_service'].str.contains(plataforma_favorita, case=False, na=False)]
+    
+    # Si no se encuentran películas que coincidan, devolver un mensaje
+    if peliculas_filtradas.empty:
+        return "No se encontraron películas que coincidan con tus preferencias."
+    
+    recomendaciones = [(fila['title'], fila['score']) for _, fila in peliculas_filtradas.iterrows()]
     recomendaciones = sorted(recomendaciones, key=lambda x: x[1], reverse=True)
-    return recomendaciones
-
-@app.route('/favoritos', methods=['POST'])
-def agregar_a_favoritos():
-    if 'id' in session:
-        usuario = usuarios.query.get(session['id'])
-        if 'titulo_pelicula' in request.form:
-            titulo_pelicula = request.form['titulo_pelicula']
-            favoritos = usuario.favoritos.split(",") if usuario.favoritos else []
-            if titulo_pelicula not in favoritos:
-                favoritos.append(titulo_pelicula)
-                usuario.favoritos = ",".join(favoritos)
-                db.session.commit()
-                flash(f'La película "{titulo_pelicula}" se ha añadido a tus favoritos.', 'success')
-            else:
-                flash('Esta película ya está en tus favoritos.', 'warning')
-        return redirect(url_for('home'))
-    return redirect(url_for('login'))
+    return recomendaciones[:top_n]
 
 if __name__ == '__main__':
     app.run(debug=True)
