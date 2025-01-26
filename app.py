@@ -122,11 +122,43 @@ def filmatch():
     if request.method == 'POST':
         if 'titulo' in request.form:
             # Búsqueda por título
-            resultado_pelicula, mensaje_error = buscar_por_titulo(request.form['titulo'])
+            titulo = request.form['titulo']
+            if 'id' in session:
+                usuario = usuarios.query.get(session['id'])
+                busquedas = usuario.busquedas_recientes.split(",") if usuario.busquedas_recientes else []
+                if titulo not in busquedas:
+                    busquedas.append(titulo)
+                usuario.busquedas_recientes = ",".join(busquedas)
+                db.session.commit()
+
+            peliculas = lectura_csv[lectura_csv['title'].str.contains(titulo, case=False, na=False)]
+            if not peliculas.empty:
+                resultado_pelicula = [({
+                    'title': fila['title'],
+                    'description': fila['description'],
+                    'poster_url': obtener_url_portada(fila['title']) or '/static/imagenes/Imagen_por_defecto.jpg',
+                    'release_year': fila['release_year'],
+                    'streaming_service': fila['streaming_service']
+                }) for _, fila in peliculas.iterrows()]
+            else:
+                mensaje_error = 'No se encontraron películas con ese título.'
 
         elif 'plataforma' in request.form:
             # Búsqueda por plataforma
-            resultado, mensaje_error = buscar_por_plataforma(request.form.getlist('plataforma'))
+            plataformas_seleccionadas = request.form.getlist('plataforma')
+            if plataformas_seleccionadas:
+                peliculas_filtradas = lectura_csv[lectura_csv['streaming_service'].isin(plataformas_seleccionadas)]
+                if not peliculas_filtradas.empty:
+                    resultado = [({
+                        'title': fila['title'],
+                        'description': fila['description'],
+                        'genres': fila['genres'],
+                        'imdb_score': fila['imdb_score']
+                    }) for _, fila in peliculas_filtradas.iterrows()]
+                else:
+                    mensaje_error = 'No se encontraron películas en esas plataformas.'
+            else:
+                mensaje_error = 'Debe seleccionar al menos una plataforma.'
 
         if 'id' in session:
             usuario = usuarios.query.get(session['id'])
@@ -136,60 +168,9 @@ def filmatch():
             recomendaciones = [({
                 'title': titulo,
                 'score': score,
-                'poster_url': obtener_url_portada(titulo) or '/static/imagenes/Imagen_por_defecto.jpg'
             }) for titulo, score in recomendaciones]
 
     return render_template('filmatch.html', resultado_pelicula=resultado_pelicula, mensaje_error=mensaje_error, resultado=resultado, recomendaciones=recomendaciones)
-
-def buscar_por_titulo(titulo):
-    # Función que maneja la búsqueda por título
-    mensaje_error = None
-    resultado_pelicula = None
-    if 'id' in session:
-        usuario = usuarios.query.get(session['id'])
-        busquedas = usuario.busquedas_recientes.split(",") if usuario.busquedas_recientes else []
-        if titulo not in busquedas:
-            busquedas.append(titulo)
-        usuario.busquedas_recientes = ",".join(busquedas)
-        db.session.commit()
-
-    peliculas = lectura_csv[lectura_csv['title'].str.contains(titulo, case=False, na=False)]
-    if not peliculas.empty:
-        resultado_pelicula = [({
-            'title': fila['title'],
-            'description': fila['description'],
-            'poster_url': obtener_url_portada(fila['title']) or '/static/imagenes/Imagen_por_defecto.jpg',
-            'release_year': fila['release_year'],
-            'streaming_service': fila['streaming_service']
-        }) for _, fila in peliculas.iterrows()]
-    else:
-        mensaje_error = 'No se encontraron películas con ese título.'
-    
-    return resultado_pelicula, mensaje_error
-
-def buscar_por_plataforma(plataformas_seleccionadas):
-    # Función que maneja la búsqueda por plataformas
-    mensaje_error = None
-    resultado = None
-    if plataformas_seleccionadas:
-        peliculas_filtradas = lectura_csv[lectura_csv['streaming_service'].isin(plataformas_seleccionadas)]
-        if not peliculas_filtradas.empty:
-            resultado = [({
-                'title': fila['title'],
-                'description': fila['description'],
-                'poster_url': obtener_url_portada(fila['title']) or '/static/imagenes/Imagen_por_defecto.jpg',
-                'genres': fila['genres'],
-                'streaming_service': fila['streaming_service'],
-                'release_year': fila['release_year'],
-                'runtime': fila['runtime'],
-                'imdb_score': fila['imdb_score']
-            }) for _, fila in peliculas_filtradas.iterrows()]
-        else:
-            mensaje_error = 'No se encontraron películas en esas plataformas.'
-    else:
-        mensaje_error = 'Debe seleccionar al menos una plataforma.'
-    
-    return resultado, mensaje_error
 
 def obtener_recomendaciones_personalizadas(favoritos, busquedas_recientes):
     recomendaciones = []
@@ -204,7 +185,6 @@ def obtener_recomendaciones_personalizadas(favoritos, busquedas_recientes):
     recomendaciones = list(set(recomendaciones))
     recomendaciones = sorted(recomendaciones, key=lambda x: x[1], reverse=True)
     return recomendaciones
-
 
 @app.route('/favoritos', methods=['POST'])
 def agregar_a_favoritos():
