@@ -32,28 +32,41 @@ lectura_csv = pd.read_csv("filmatch.csv",
 # Normalizamos la columna de plataformas en el CSV
 lectura_csv['streaming_service'] = lectura_csv['streaming_service'].str.lower().str.strip()
 
-# Función para normalizar título para consulta a OMDb
 def normalizar_titulo(titulo):
+    """Normaliza el título para ser compatible con OMDb API."""
     return titulo.strip().lower().replace(" ", "+")
 
-# Obtener URL de portada de película desde OMDb
 def obtener_url_portada(titulo):
+    """Obtiene la URL de la portada desde OMDb API."""
     titulo_normalizado = normalizar_titulo(titulo)
     url = f"http://www.omdbapi.com/?t={titulo_normalizado}&apikey={OMDB_API_KEY}"
     respuesta = requests.get(url)
+
     if respuesta.status_code == 200:
         datos = respuesta.json()
         if datos.get('Response') == 'True':
-            return datos.get('Poster')
-    return None
+            return datos.get('Poster')  # Retorna la URL de la portada
+    return None  # Devuelve None si no encuentra la portada
 
-# Filtro de plantilla para recortar texto
-@app.template_filter('truncatewords')
-def truncatewords_filter(text, num_words):
-    if not text:
-        return ''
+# Filtro personalizado para truncar palabras
+def truncate_words(text, num_words):
     words = text.split()
     return ' '.join(words[:num_words])
+
+# Registrar el filtro
+app.jinja_env.filters['truncatewords'] = truncate_words
+
+IMAGENES_EN_PLATAFORMA = {
+    'netflix': '/static/imagenes/netflix.png',
+    'amazon': '/static/imagenes/amazon.png',
+    'hulu': '/static/imagenes/hulu.png',
+    'disney': '/static/imagenes/disney.png',
+    'hbo': '/static/imagenes/hbo.png',
+    'paramount': '/static/imagenes/paramount.png',
+    'crunchyroll': '/static/imagenes/crunchyroll.png',
+    'darkmatter': '/static/imagenes/dm.jpg',
+    'rakuten': '/static/imagenes/rakuten.png',
+}
 
 # Rutas principales
 @app.route('/')
@@ -120,7 +133,8 @@ def filmatch():
                     'description': fila['description'],
                     'poster_url': obtener_url_portada(fila['title']) or '/static/imagenes/Imagen_por_defecto.jpg',
                     'release_year': fila['release_year'],
-                    'streaming_service': fila['streaming_service']
+                    'streaming_service': fila['streaming_service'],
+                    'streaming_image': IMAGENES_EN_PLATAFORMA.get(fila['streaming_service'], '/static/imagenes/Imagen_por_defecto.jpg')
                 }) for _, fila in peliculas.iterrows()]
             else:
                 mensaje_error = 'No se encontraron películas con ese título.' 
@@ -136,18 +150,23 @@ def filmatch():
                            mensaje_error=mensaje_error, 
                            recomendaciones=recomendaciones)
 
-# Función para obtener recomendaciones basadas en las respuestas a las preguntas
 def obtener_recomendaciones_por_preferencias(genero, plataforma_favorita, top_n=10):
     # Filtrar las películas por género y plataforma
-    peliculas_filtradas = lectura_csv[lectura_csv['genres'].str.contains(genero, case=False, na=False) &
+    peliculas_filtradas = lectura_csv[lectura_csv['genres'].str.contains(genero, case=False, na=False) & 
                                       lectura_csv['streaming_service'].str.contains(plataforma_favorita, case=False, na=False)]
     
     # Si no se encuentran películas que coincidan, devolver un mensaje
     if peliculas_filtradas.empty:
         return "No se encontraron películas que coincidan con tus preferencias."
     
-    recomendaciones = [(fila['title'], fila['score']) for _, fila in peliculas_filtradas.iterrows()]
-    recomendaciones = sorted(recomendaciones, key=lambda x: x[1], reverse=True)
+    recomendaciones = [{
+        'title': fila['title'],
+        'score': fila['score'],
+        'poster_url': obtener_url_portada(fila['title']) or '/static/imagenes/Imagen_por_defecto.jpg'
+    } for _, fila in peliculas_filtradas.iterrows()]
+    
+    # Ordenar las películas por puntaje y devolver solo las top_n
+    recomendaciones = sorted(recomendaciones, key=lambda x: x['score'], reverse=True)
     return recomendaciones[:top_n]
 
 if __name__ == '__main__':

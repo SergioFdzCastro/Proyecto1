@@ -57,6 +57,8 @@
                         <p>{{ pelicula.description | truncatewords(20) }}</p>
                         <p><strong>Año:</strong> {{ pelicula.release_year }}</p>
                         <p><strong>Plataforma:</strong> {{ pelicula.streaming_service }}</p>
+                        <!-- Mostrar la imagen de la plataforma -->
+                        <img src="{{ pelicula.streaming_image }}" class="platform-logo" alt="Logo de {{ pelicula.streaming_service }}">
                     </div>
                 {% endfor %}
             </div>
@@ -87,19 +89,18 @@
 
         <!-- Mostrar recomendaciones personalizadas -->
         {% if recomendaciones %}
-            <h2 class="mt-5">Recomendaciones para ti:</h2>
-            <div class="row">
-                {% for pelicula in recomendaciones %}
-                    <div class="col-md-3 recomendacion">
-                        <img src="{{ pelicula.poster_url }}" alt="{{ pelicula.title }}">
-                        <h3>{{ pelicula.title }}</h3>
-                        <p><strong>Score:</strong> {{ pelicula.score }}</p>
-                    </div>
-                {% endfor %}
-            </div>
-        {% endif %}
-    </div>
-
+        <h2 class="mt-5">Recomendaciones para ti:</h2>
+        <div class="row">
+            {% for pelicula in recomendaciones %}
+                <div class="col-md-3 recomendacion">
+                    <img src="{{ pelicula.poster_url }}" alt="{{ pelicula.title }}">
+                    <h3>{{ pelicula.title }}</h3>
+                    <p><strong>Score:</strong> {{ pelicula.score }}</p>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+    
     <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.2/dist/umd/popper.min.js"></script>
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/js/bootstrap.min.js"></script>

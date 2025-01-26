@@ -25,7 +25,7 @@ document.addEventListener("DOMContentLoaded", function() {
                 return;
             }
 
-            // Puedes agregar más validaciones aquí si es necesario
+          
         });
     });
 });
