@@ -1,79 +1,104 @@
-/* General */
+/* login.css */
 body {
     font-family: Arial, sans-serif;
-    background-color: #f4f4f9;
+    background-color: #333333; /* Negro no muy oscuro */
+    color: #fff;
     margin: 0;
     padding: 0;
     display: flex;
     justify-content: center;
     align-items: center;
     height: 100vh;
-    flex-direction: column; /* Alinea los elementos verticalmente */
-    text-align: center; /* Centra los elementos de texto como el h2 */
+}
+
+.container {
+    display: flex;
+    width: 80%;
+    max-width: 1000px;
+    background-color: #444444;
+    border-radius: 15px;
+    overflow: hidden;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+}
+
+.left {
+    flex: 1;
+    background-color: #222;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+}
+
+.left img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 10px;
+}
+
+.right {
+    flex: 1;
+    padding: 40px 30px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
 }
 
 h2 {
-    color: #333;
-    margin-bottom: 20px; /* Añade espacio debajo del título */
-    text-align: center; /* Asegura que el título esté centrado */
+    color: #ff3f3f;
+    text-align: center;
+    margin-bottom: 20px;
+    font-size: 2rem;
 }
 
-form {
-    background-color: white;
-    padding: 20px;
-    border-radius: 8px;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-    width: 300px;
-    display: flex;
-    flex-direction: column; /* Alinea los elementos verticalmente */
-    align-items: stretch; /* Hace que los elementos llenen el formulario */
-    margin: 0 auto; /* Centra el formulario horizontalmente */
+.form-group {
+    margin-bottom: 20px;
 }
 
 label {
     display: block;
-    margin-bottom: 8px;
-    font-size: 14px;
-    color: #555;
-    text-align: left; /* Alinea las etiquetas a la izquierda */
+    font-weight: bold;
+    margin-bottom: 5px;
 }
 
-input {
-    width: 100%; /* Hace que el input ocupe todo el ancho del contenedor */
-    padding: 10px;
-    margin-bottom: 16px; /* Añade espacio entre los campos de entrada */
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    font-size: 14px;
-}
-
-button {
+input[type="text"], input[type="password"] {
     width: 100%;
-    padding: 12px;
-    background-color: #4CAF50;
-    color: white;
+    padding: 10px;
+    font-size: 1rem;
+    border: 1px solid #666;
+    border-radius: 5px;
+    background-color: #555;
+    color: #fff;
+}
+
+.login-button {
+    width: 100%;
+    padding: 10px;
+    font-size: 1.2rem;
+    background-color: #ff3f3f;
+    color: #fff;
     border: none;
-    border-radius: 4px;
-    font-size: 16px;
+    border-radius: 5px;
     cursor: pointer;
-    margin-top: 10px; /* Añade un poco de espacio sobre el botón */
+    transition: background-color 0.3s;
 }
 
-button:hover {
-    background-color: #45a049;
+.login-button:hover {
+    background-color: #e63636;
 }
 
-p {
+.redirect {
     text-align: center;
-    font-size: 14px;
-    margin-top: 20px; /* Añade espacio entre el formulario y el enlace */
+    margin-top: 15px;
+    font-size: 0.9rem;
 }
 
-a {
+.redirect a {
+    color: #ff3f3f;
     text-decoration: none;
-    color: #007BFF;
+    font-weight: bold;
 }
 
-a:hover {
+.redirect a:hover {
     text-decoration: underline;
 }

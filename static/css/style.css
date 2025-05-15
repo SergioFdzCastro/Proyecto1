@@ -150,12 +150,29 @@ footer a:hover {
     justify-content: center; /* Centra las imágenes horizontalmente */
     align-items: center; /* Alinea las imágenes verticalmente */
 }
+
 .platform-image {
     width: 100px;  /* Tamaño estándar para todas las imágenes */
     height: 100px; /* Tamaño estándar para todas las imágenes */
     object-fit: contain; /* Mantiene la proporción */
     border-radius: 10px; /* Opcional: esquinas redondeadas */
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.5); /* Opcional: sombra para destacar */
+}
+
+.boton-recomendaciones, .boton-volver {
+    display: inline-block;
+    margin: 20px 0;
+    padding: 10px 20px;
+    background-color: #ff6f61;
+    color: white;
+    text-decoration: none;
+    border-radius: 5px;
+    font-size: 16px;
+    text-align: center;
+}
+
+.boton-recomendaciones:hover, .boton-volver:hover {
+    background-color: #ff3f31;
 }
 
 /* Responsivo */
@@ -173,4 +190,5 @@ footer a:hover {
         font-size: 0.9em;
     }
 }
+
 
