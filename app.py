@@ -11,7 +11,7 @@ app = Flask(__name__)
 # Configuración básica
 app.secret_key = secrets.token_hex(16)
 
-# ✅ Configura conexión a MySQL en XAMPP (sin contraseña en root por defecto)
+
 app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://root:@localhost/filmatch_db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
